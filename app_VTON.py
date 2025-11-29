@@ -229,6 +229,23 @@ def start_tryon(dict, garm_img, garment_des, category, is_checked, is_checked_cr
         keypoints = openpose_model(human_img.resize((384, 512)))
         model_parse, _ = parsing_model(human_img.resize((384, 512)))
         mask, mask_gray = get_mask_location('hd', category, model_parse, keypoints)
+        left_final = int(left_orig * scale_factor)
+        top_final = int(top_orig * scale_factor)
+        crop_width_final = int(target_width * scale_factor)
+        crop_height_final = int(target_height * scale_factor)
+        crop_size = (crop_width_final, crop_height_final)
+        print(f"start_tryon: Computed crop region on original image: left_orig: {left_orig}, top_orig: {top_orig}, target_width: {target_width}, target_height: {target_height}")
+        print(f"start_tryon: Scaled crop region for final image: left_final: {left_final}, top_final: {top_final}, crop_size: {crop_size}")
+        # Use the already auto-cropped human image as model input since it is 768x1024.
+        human_img = human_img_orig
+    else:
+        human_img = human_img_orig.resize((768, 1024))
+        print("start_tryon: Auto crop not enabled, resized human image to 768x1024.")
+
+    if is_checked:
+        keypoints = openpose_model(human_img.resize((384, 512)))
+        model_parse, _ = parsing_model(human_img.resize((384, 512)))
+        mask, mask_gray = get_mask_location('hd', category, model_parse, keypoints)
         mask = mask.resize((768, 1024))
         print("start_tryon: Auto-masking used")
     else:
@@ -349,22 +366,9 @@ def start_tryon(dict, garm_img, garment_des, category, is_checked, is_checked_cr
 garm_list = os.listdir(os.path.join(example_path, "cloth"))
 garm_list_path = [os.path.join(example_path, "cloth", garm) for garm in garm_list]
 
-human_list = os.listdir(os.path.join(example_path, "human"))
-human_list_path = [os.path.join(example_path, "human", human) for human in human_list]
-
-human_ex_list = []
-for ex_human in human_list_path:
-    if "Jensen" in ex_human or "sam1 (1)" in ex_human:
-        ex_dict = {}
-        ex_dict['background'] = ex_human
-        ex_dict['layers'] = None
-        ex_dict['composite'] = None
-        human_ex_list.append(ex_dict)
 
 image_blocks = gr.Blocks().queue()
 with image_blocks as demo:
-    gr.Markdown("## V17 - IDM-VTON 👕👔👚 improved by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/122718239")
-    gr.Markdown("Virtual Try-on with your image and garment image. Check out the [source codes](https://github.com/yisol/IDM-VTON) and the [model](https://huggingface.co/yisol/IDM-VTON)")
     with gr.Row():
         with gr.Column():
             imgs = gr.ImageEditor(
@@ -382,11 +386,7 @@ with image_blocks as demo:
                 is_checked = gr.Checkbox(label="Yes", info="Use auto-generated mask (Takes 5 seconds)", value=True)
             with gr.Row():
                 is_checked_crop = gr.Checkbox(label="Yes", info="Use auto-crop & resizing", value=True)
-            example = gr.Examples(
-                inputs=imgs,
-                examples_per_page=2,
-                examples=human_ex_list
-            )
+
         with gr.Column():
             garm_img = gr.Image(label="Garment", sources='upload', type="pil")
             with gr.Row(elem_id="prompt-container"):
